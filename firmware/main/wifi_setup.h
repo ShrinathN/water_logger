@@ -5,6 +5,7 @@
 
 //macros
 #define WIFI_CONNECTED_BIT BIT0
+#define WIFI_DISCONNECTED_BIT BIT1
 
 //public functions
 

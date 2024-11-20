@@ -10,7 +10,7 @@
 
 #define RETRY_TIMEOUT 1000000
 #define HX711_PULSE_TIME 5
-#define HX711_PULSE_TIME_US 30
+#define HX711_PULSE_TIME_US 20
 
 #define HX711_ZERO 24173
 #define HX711_300G 107049
@@ -31,4 +31,5 @@ typedef struct
 void HX711_Init(void);
 bool HX711_Get_Readings(HX711_Result *ptr_to_result);
 uint32_t HX711_Get_Weight();
+uint32_t HX711_Get_Valid_Weight();
 #endif

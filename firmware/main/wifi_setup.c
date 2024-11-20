@@ -1,10 +1,30 @@
 #include "wifi_setup.h"
 
-//private variables
-// EventGroupHandle_t wifi_setup_event_group_handle;
+// private variables
+EventGroupHandle_t wifi_setup_event_group_handle;
 
 // private function declaration
 static void WIFI_SETUP_Event_Handler(void *event_handler_arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
+static void WIFI_SETUP_Reconnect_Task(void *arg);
+
+/**
+ * Runs every 10s. If the disconnected bit is set, we try to connect
+ */
+static void WIFI_SETUP_Reconnect_Task(void *arg)
+{
+    const char *TAG = __func__;
+    ESP_LOGI(TAG, "Reconnect Task started!");
+    while (1)
+    {
+        EventBits_t wifi_event_bits = xEventGroupGetBits(wifi_setup_event_group_handle);
+        if (wifi_event_bits & WIFI_DISCONNECTED_BIT)
+        {
+            esp_wifi_connect();
+        }
+
+        vTaskDelay(10000 / portTICK_RATE_MS);
+    }
+}
 
 /**
  * @brief Is called whenever any connection related WiFi event happens
@@ -22,15 +42,24 @@ static void WIFI_SETUP_Event_Handler(void *event_handler_arg, esp_event_base_t e
         if (event_id == WIFI_EVENT_STA_DISCONNECTED)
         {
             wifi_event_sta_disconnected_t *disconnected_event_ptr = (wifi_event_sta_disconnected_t *)event_data;
-            ESP_LOGI(TAG, "Disconnected!");
-            esp_wifi_connect();
+            xEventGroupSetBits(wifi_setup_event_group_handle, WIFI_DISCONNECTED_BIT);
+            xEventGroupClearBits(wifi_setup_event_group_handle, WIFI_CONNECTED_BIT);
         }
     }
-    else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
+    else if (event_base == IP_EVENT)
     {
-        ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
-        ESP_LOGI(TAG, "Got IP : %s", ip4addr_ntoa(&event->ip_info.ip));
-        // xEventGroupSetBits(wifi_setup_event_group_handle, WIFI_CONNECTED_BIT);
+        if (event_id == IP_EVENT_STA_GOT_IP)
+        {
+            // when we get an IP
+            ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
+            ESP_LOGI(TAG, "Got IP : %s", ip4addr_ntoa(&event->ip_info.ip));
+            xEventGroupClearBits(wifi_setup_event_group_handle, WIFI_DISCONNECTED_BIT);
+            xEventGroupSetBits(wifi_setup_event_group_handle, WIFI_CONNECTED_BIT);
+        }
+        if (event_id == IP_EVENT_STA_LOST_IP)
+        {
+            // if the IP is lost for some reason
+        }
     }
 }
 
@@ -38,8 +67,8 @@ esp_err_t WIFI_SETUP_Init(void)
 {
     const char *TAG = __func__;
 
-    //creating the event group
-    // wifi_setup_event_group_handle = xEventGroupCreate();
+    // creating the event group
+    wifi_setup_event_group_handle = xEventGroupCreate();
 
     // starting TCPIP adapter
     tcpip_adapter_init();
@@ -73,7 +102,9 @@ esp_err_t WIFI_SETUP_Init(void)
     ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
 
-    // EventBits_t wifi_event_bits = xEventGroupWaitBits(wifi_setup_event_group_handle, WIFI_CONNECTED_BIT, pdFALSE, pdFALSE, portMAX_DELAY);
-    ESP_LOGI(TAG, "wifi_init_sta finished.");
+    EventBits_t wifi_event_bits = xEventGroupWaitBits(wifi_setup_event_group_handle, WIFI_CONNECTED_BIT, pdFALSE, pdFALSE, portMAX_DELAY);
+
+    xTaskCreate(WIFI_SETUP_Reconnect_Task, "WIFI_SETUP_Reconnect_Task", 1024, NULL, 0, NULL);
+    ESP_LOGI(TAG, "WiFi connection done!");
     return ESP_OK;
 }

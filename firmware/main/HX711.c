@@ -2,7 +2,7 @@
 
 void HX711_Init(void)
 {
-	HX711_SET_SCK(HIGH);
+	HX711_SET_SCK(LOW);
 }
 
 bool HX711_Get_Readings(HX711_Result *ptr_to_result)
@@ -11,10 +11,6 @@ bool HX711_Get_Readings(HX711_Result *ptr_to_result)
 	ptr_to_result->reading_0 = 0;
 	ptr_to_result->reading_1 = 0;
 	ptr_to_result->reading_2 = 0;
-
-	// setting the SCK low for 80us
-	HX711_SET_SCK(LOW);
-	HX711_DELAY_US(80);
 
 	// getting first conversion
 	// waiting until DOUT is high
@@ -134,10 +130,6 @@ bool HX711_Get_Readings(HX711_Result *ptr_to_result)
 	HX711_SET_SCK(LOW);					 // rising edge
 	HX711_DELAY_US(HX711_PULSE_TIME_US); // waiting for time
 
-	// setting the SCK high for 80us
-	HX711_SET_SCK(HIGH);
-	HX711_DELAY_US(80);
-
 	return true;
 }
 
@@ -155,4 +147,20 @@ uint32_t HX711_Get_Weight()
 	int data = (int)(*(&res.reading_1)) - HX711_ZERO;
 	uint32_t data_to_return = (uint32_t)(HX711_adc_to_weight_g(data) * 1000);
 	return data_to_return;
+}
+
+uint32_t HX711_Get_Valid_Weight()
+{
+	uint32_t to_return = HX711_Get_Weight();
+	if (to_return < 15)
+	{
+		to_return = 0;
+	}
+
+	if (to_return > 2000)
+	{
+		to_return = 0;
+	}
+
+	return to_return;
 }
